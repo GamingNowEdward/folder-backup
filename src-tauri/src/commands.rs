@@ -48,6 +48,22 @@ fn folder_data_dir() -> PathBuf {
     root.parent().map(Path::to_path_buf).unwrap_or(root)
 }
 
+/// 解析 settings.json 路径（纯函数，便于单测）。
+///
+/// 1. `<exe目录>/settings.json` 已存在 → 便携模式，设置跟随 exe
+/// 2. 否则 → 数据目录（MSI / 开发环境，现状）
+pub fn resolve_settings_path(exe_path: &Path, data_dir: &Path) -> PathBuf {
+    if let Some(dir) = exe_path.parent() {
+        if !dir.as_os_str().is_empty() {
+            let candidate = dir.join("settings.json");
+            if candidate.exists() {
+                return candidate;
+            }
+        }
+    }
+    data_dir.join("settings.json")
+}
+
 pub fn load_or_default(settings_path: &Path) -> Settings {
     if let Ok(text) = std::fs::read_to_string(settings_path) {
         if let Ok(s) = serde_json::from_str::<Settings>(&text) {
@@ -291,5 +307,40 @@ pub fn init_state(settings_path: PathBuf) -> AppState {
 }
 
 pub fn settings_default_path() -> PathBuf {
-    folder_data_dir().join("settings.json")
+    let exe = std::env::current_exe().unwrap_or_default();
+    resolve_settings_path(&exe, &folder_data_dir())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn resolve_settings_prefers_exe_side_when_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let data = tmp.path().join("data");
+        let exe_dir = tmp.path().join("app");
+        fs::create_dir_all(&exe_dir).unwrap();
+        fs::create_dir_all(&data).unwrap();
+        let settings = exe_dir.join("settings.json");
+        fs::write(&settings, "{}").unwrap();
+
+        let exe = exe_dir.join("FolderBackup.exe");
+        let got = resolve_settings_path(&exe, &data);
+        assert_eq!(got, settings);
+    }
+
+    #[test]
+    fn resolve_settings_falls_back_to_data_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let data = tmp.path().join("data");
+        let exe_dir = tmp.path().join("app");
+        fs::create_dir_all(&exe_dir).unwrap();
+        fs::create_dir_all(&data).unwrap();
+
+        let exe = exe_dir.join("FolderBackup.exe");
+        let got = resolve_settings_path(&exe, &data);
+        assert_eq!(got, data.join("settings.json"));
+    }
 }
