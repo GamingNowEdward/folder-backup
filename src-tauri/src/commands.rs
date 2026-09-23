@@ -66,7 +66,7 @@ pub fn resolve_settings_path(exe_path: &Path, data_dir: &Path) -> PathBuf {
 
 pub fn load_or_default(settings_path: &Path) -> Settings {
     if let Ok(text) = std::fs::read_to_string(settings_path) {
-        if let Ok(s) = serde_json::from_str::<Settings>(&text) {
+        if let Some(s) = parse_settings(&text) {
             if !s.backup_root.trim().is_empty() {
                 return s;
             }
@@ -75,6 +75,12 @@ pub fn load_or_default(settings_path: &Path) -> Settings {
     Settings {
         backup_root: default_backup_root().to_string_lossy().into_owned(),
     }
+}
+
+/// 解析 settings JSON：剥离可能存在的 UTF-8 BOM（记事本等编辑器保存会带），
+/// 否则 serde_json 会报「expected value at line 1 column 1」并静默丢弃配置。
+pub fn parse_settings(text: &str) -> Option<Settings> {
+    serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()
 }
 
 fn find_project(root: &Path, project_id: &str) -> Result<ProjectMeta, AppError> {
@@ -342,5 +348,23 @@ mod tests {
         let exe = exe_dir.join("FolderBackup.exe");
         let got = resolve_settings_path(&exe, &data);
         assert_eq!(got, data.join("settings.json"));
+    }
+
+    #[test]
+    fn parse_settings_strips_utf8_bom() {
+        let with_bom = "\u{feff}{\"backup_root\": \"D:/bk\"}";
+        let s = parse_settings(with_bom).expect("BOM 应被剥离后可解析");
+        assert_eq!(s.backup_root, "D:/bk");
+    }
+
+    #[test]
+    fn parse_settings_plain_ok() {
+        let s = parse_settings("{\"backup_root\": \"\"}").expect("普通 JSON 可解析");
+        assert_eq!(s.backup_root, "");
+    }
+
+    #[test]
+    fn parse_settings_garbage_none() {
+        assert!(parse_settings("not-json").is_none());
     }
 }
