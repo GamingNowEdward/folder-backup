@@ -1,0 +1,15 @@
+[package]
+name = "backup-cli"
+version.workspace = true
+edition.workspace = true
+description = "Folder Backup 命令行工具"
+
+[[bin]]
+name = "backup-cli"
+path = "src/main.rs"
+
+[dependencies]
+backup-core.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+chrono.workspace = true

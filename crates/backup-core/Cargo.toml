@@ -1,0 +1,17 @@
+[package]
+name = "backup-core"
+version.workspace = true
+edition.workspace = true
+description = "Folder Backup 引擎：层栈备份 / 恢复"
+
+[dependencies]
+jwalk.workspace = true
+fs2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+windows-sys.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
